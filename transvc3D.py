@@ -37,6 +37,11 @@ def gauss_I_2D(rad_x,rad_y,wx0,wy0,power,lam,z):
     2D normalized intensity of a Gaussian laser beam
     z is the general name for the direction of propagation, it's not necessarily the z-coord 
     in a given simulation problem 
+    
+    rad_x : x-position from the center ("radius")
+    rad_y : y-position from the center ("radius")
+    wx0 : smallest beam waist in x ("radius", so 1/2 of the full waist)
+    wy0 : smallest beam waist in y ("radius", so 1/2 of the full waist)
     """
     rayleigh_x = (wx0**2 * np.pi)/lam
     rayleigh_y = (wy0**2 * np.pi)/lam
@@ -77,9 +82,10 @@ def diffeqs(variables,t,params):
 # Parameters for simulation which we don't sweep
 
 detun = -blueGamma/2 #beam detuning
+lam = 460.7e-9 #460.7 nm
 
 
-x_init = -50*10**-3 #all initial conditions in this block 
+z_init = -50*10**-3 # in all initial conditions in this block 
 y_init = 0
 speed_init = 550
 #angle_init_mrad = 8
