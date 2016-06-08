@@ -12,6 +12,7 @@ import scipy as sp
 from scipy.integrate import odeint
 from os.path import isfile
 import sys
+import tables
 
 #Constants
 from pyConstants import *
@@ -95,6 +96,114 @@ vx_init = speed_init*np.cos(angle_init)
 vy_init = speed_init*np.sin(angle_init)
 
 powerlaser = 30*10**-3
+
+# Lists of parameters which we vary in simulations 
+
+alpha_angle = [0,0.5,1,1.5,2,2.5,3] #degrees 
+beta_angle = [0,15,30,45,60,75,90] #degrees 
+a_width = [1,3,5,7,9,11,13,15,17] # [mm] long axis of the ellipse radius
+b_width = [1,2,3,4,5] # [mm] short axis of the ellipse radius 
+power_laser = [15,20,25,30] # [mW]
+
+
+
+
+class Coords_and_vel(tables.IsDescription):
+    time = tables.Float64Col()
+    x_pos = tables.Float64Col()   
+    vx = tables.Float64Col()
+    y_pos = tables.Float64Col()
+    vy = tables.Float64Col()
+    z_pos = tables.Float64Col()
+    vz = tables.Float64Col()
+    # idnumber  = Int64Col()      # Signed 64-bit integer
+    # ADCcount  = UInt16Col()     # Unsigned short integer
+    # TDCcount  = UInt8Col()      # unsigned byte
+    # grid_i    = Int32Col()      # 32-bit integer
+    # grid_j    = Int32Col()      # 32-bit integer
+    # pressure  = Float32Col()    # float  (single-precision)
+    # energy    = Float64Col()    # double (double-precision)
+
+class Detunings(tables.IsDescription):
+    detun = tables.Float64Col()
+    
+
+file_save = tables.open_file("C:/Users/Oleksiy/Desktop/SimulationResults/redMOT/UnifPowerUnifWaistComb%.i.hdf5"%num_redCombLines,mode="a",title= "Red MOT simulation, %.i comb"%num_redCombLines)
+grp_grad = file_save.create_group("/","grad%.3f"%(redGradient*100),title="Red gradient: %.3f G/cm"%(redGradient*100))
+
+grp_simulation = file_save.create_group(grp_grad,str(int(redPowerXtotal*10**3))+"_"+str(int(redRadX*10**3)),\
+    title="Power: " + str(int(redPowerXtotal*10**3))+ " mW, beam rad.:" +str(int(redRadX*10**3))+" mm")
+
+grp_detunings = file_save.create_group(grp_simulation,"detuningsHz",\
+    title="Values of freqs of the comb lines, in Hz, red-detuned from resonance")
+tbl_detunings = file_save.create_table(grp_detunings,"detunings",Detunings)
+detunigns_save = tbl_detunings.row
+for i in range(len(detunings_red)):
+    detunigns_save["detun"] = detunings_red[i]
+    detunigns_save.append()
+tbl_detunings.flush()
+
+
+
+print("Getting ready to run the solution loop")
+
+counter = 0
+
+for inits in initialconds_red: 
+
+    #tbl_inits = file_save.create_table(grp_simulation,"init"+str(counter),Coords_and_vel,"Initial conditions")
+    tbl_results = file_save.create_table(grp_simulation,str(counter),Coords_and_vel,"Results")
+    tbl_results.attrs.initialconds = "x: %.f, vx: %.f, y: %.f, vy: %.f, z: %.f, vz: %.f"%(inits[0],inits[1],inits[2],inits[3],inits[4],inits[5])
+    coords_and_vel = tbl_results.row
+
+
+    print("Solving for initial conditions %.i out of %.i"%(counter,len(initialconds_red)))
+    solution_red = odeint(diffeqs_red, inits, t, args=(parameters_red,),mxstep=10**8)
+    print("Saving data for initial conditions %.i out of %.i"%(counter,len(initialconds_red)))
+
+    for i in range(len(solution_red)):
+        coords_and_vel["time"] = t[i]
+        coords_and_vel["x_pos"] = solution_red[i,0]   
+        coords_and_vel["vx"] = solution_red[i,1] 
+        coords_and_vel["y_pos"] = solution_red[i,2] 
+        coords_and_vel["vy"] = solution_red[i,3] 
+        coords_and_vel["z_pos"] = solution_red[i,4] 
+        coords_and_vel["vz"] = solution_red[i,5] 
+        coords_and_vel.append()
+
+    tbl_results.flush()
+    del tbl_results
+    del solution_red
+    print("Initial conditions %.i out of %.i are done"%(counter,len(initialconds_red)))
+    counter += 1
+
+file_save.close()
+sys.exit(0)
+
+
+#---------------------------------------------------------
+
+coords_and_vel = tbl.row
+
+print("Getting ready to solve")
+solution_red = odeint(diffeqs_red, initialconds_red[0], t, args=(parameters_red,),mxstep=10**9)
+
+print("Solved! Getting ready to write data")
+
+for i in range(len(solution_red)):
+    coords_and_vel["x_pos"] = solution_red[i,0]   
+    coords_and_vel["vx"] = solution_red[i,1] 
+    coords_and_vel["y_pos"] = solution_red[i,2] 
+    coords_and_vel["vy"] = solution_red[i,3] 
+    coords_and_vel["z_pos"] = solution_red[i,4] 
+    coords_and_vel["vz"] = solution_red[i,5] 
+    coords_and_vel.append()
+
+tbl.flush()
+
+
+
+
 
 
 # we sweep through the values of beam radii
