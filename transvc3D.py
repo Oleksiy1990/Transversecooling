@@ -87,7 +87,7 @@ detun = -blueGamma*detun_fractionGamma #beam detuning
 lam = 460.7e-9 #460.7 nm
 timeStop=0.2*10**-3
 timePts=10**5
-time=np.linspace(0.,tStop,tPts)
+time=np.linspace(0.,timeStop,timePts)
 
 z_init = np.array([-50e-3]) # in all initial conditions in this block 
 speed_init = np.array([550])
@@ -128,7 +128,7 @@ vz_init = speed_init*np.cos(alpha_angle)
 vx_init = np.insert([speed_init*np.sin(alpha)*np.cos(beta) for alpha in alpha_angle for beta in beta_angle],0,0)
 vy_init = np.insert([speed_init*np.sin(alpha)*np.sin(beta) for alpha in alpha_angle for beta in beta_angle],0,0)
 
-initialconditions = np.array(list(itertools.product(x_init,vx_init,y_init,vy_init,z_init,vz_init)))
+initialconditions = np.array(list(itertools.product(x_init,vx_init,y_init,vy_init,z_init,vz_init))) #this should be correct
 
 print(initialconditions.shape)
 
@@ -136,7 +136,7 @@ print(vx_init)
 print(vy_init)
 
 
-sys.exit(0)
+#sys.exit(0)
 
 # Organizing the PyTables HDF5 file to save the data
 
@@ -147,8 +147,8 @@ class Simulation_output(tables.IsDescription):
     final_speed_xy = tables.Float64Col()
     init_x = tables.Float64Col()
     init_y = tables.Float64Col()   
-    angle_alpha = tables.Float64Col()
-    angle_beta = tables.Float64Col()
+    init_vx = tables.Float64Col()
+    init_vy = tables.Float64Col()
     
 
 class Descr(tables.IsDescription):
@@ -184,37 +184,36 @@ grp_sim = file_save.create_group("/","a%.ib%.i"%(a_width_mm[a_width_index],b_wid
 
 print("Getting ready to run the solution loop")
 
-counter = 0
+tbl_results = file_save.create_table(grp_sim,"A",Simulation_output,"Results")
+output = tbl_results.row
 
-for num,inits in enumerate(initialconditions): 
-
-    #tbl_inits = file_save.create_table(grp_simulation,"init"+str(counter),Coords_and_vel,"Initial conditions")
-    tbl_results = file_save.create_table(grp_sim,str(num),Simulation_output,"Results")
-    #tbl_results.attrs.initialconds = "x: %.f, vx: %.f, y: %.f, vy: %.f, z: %.f, vz: %.f"%(inits[0],inits[1],inits[2],inits[3],inits[4],inits[5])
-    output = tbl_results.row
+for num,inits in enumerate(initialconditions[0:2000]):
+    
 
     params = [blueKvec,blueGamma,detun,a_width[a_width_index],b_width[b_width_index],power_laser[power_index],lam]
     #print("Solving for initial conditions %.i out of %.i"%(counter,len(initialconds_red)))
     psoln = odeint(diffeqs,inits,time,args=(params,))
-    y_final.append(psoln[-1,2])
-    vy_final.append(psoln[-1,3])
+    
     #print("Saving data for initial conditions %.i out of %.i"%(counter,len(initialconds_red)))
 
-    for i in range(len(solution_red)):
-        coords_and_vel["time"] = t[i]
-        coords_and_vel["x_pos"] = solution_red[i,0]   
-        coords_and_vel["vx"] = solution_red[i,1] 
-        coords_and_vel["y_pos"] = solution_red[i,2] 
-        coords_and_vel["vy"] = solution_red[i,3] 
-        coords_and_vel["z_pos"] = solution_red[i,4] 
-        coords_and_vel["vz"] = solution_red[i,5] 
-        coords_and_vel.append()
+   
+    output["final_pos_xy"] = np.sqrt(psoln[-1,0]**2+psoln[-1,2]**2)
+    output["final_vx"] = psoln[-1,0]   
+    output["final_vy"] = psoln[-1,2] 
+    output["final_speed_xy"] = np.sqrt(psoln[-1,1]**2+psoln[-1,3]**2) 
+    output["init_x"] = inits[0] 
+    output["init_y"] = inits[2]
+    output["init_vx"] = inits[1] 
+    output["init_vy"] = inits[3]
+    output.append()
 
-    tbl_results.flush()
-    del tbl_results
-    del solution_red
-    print("Initial conditions %.i out of %.i are done"%(counter,len(initialconds_red)))
-    counter += 1
+tbl_results.flush()
+del tbl_results
+
+# This is now a correct way to save the results into HDF5, but I need to check the equations
+    
+    
+   
 
 file_save.close()
 sys.exit(0)
