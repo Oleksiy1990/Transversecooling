@@ -13,6 +13,7 @@ from scipy.integrate import odeint
 from os.path import isfile
 import sys
 import tables
+import itertools
 
 #Constants
 from pyConstants import *
@@ -81,67 +82,103 @@ def diffeqs(variables,t,params):
 
 
 # Parameters for simulation which we don't sweep
-
-detun = -blueGamma/2 #beam detuning
+detun_fractionGamma = 0.5
+detun = -blueGamma*detun_fractionGamma #beam detuning
 lam = 460.7e-9 #460.7 nm
+timeStop=0.2*10**-3
+timePts=10**5
+time=np.linspace(0.,tStop,tPts)
+
+z_init = np.array([-50e-3]) # in all initial conditions in this block 
+speed_init = np.array([550])
 
 
-z_init = -50*10**-3 # in all initial conditions in this block 
-y_init = 0
-speed_init = 550
+ 
 #angle_init_mrad = 8
-angle_init_deg = 5
-angle_init=angle_init_deg*(np.pi/180) #conversion to radians 
-vx_init = speed_init*np.cos(angle_init)
-vy_init = speed_init*np.sin(angle_init)
-
-powerlaser = 30*10**-3
-
-# Lists of parameters which we vary in simulations 
-
-alpha_angle = [0,0.5,1,1.5,2,2.5,3] #degrees 
-beta_angle = [0,15,30,45,60,75,90] #degrees 
-a_width = [1,3,5,7,9,11,13,15,17] # [mm] long axis of the ellipse radius
-b_width = [1,2,3,4,5] # [mm] short axis of the ellipse radius 
-power_laser = [15,20,25,30] # [mW]
+#angle_init_deg = 5
+#angle_init=angle_init_deg*(np.pi/180) #conversion to radians 
+#vx_init = speed_init*np.cos(angle_init)
+#vy_init = speed_init*np.sin(angle_init)
 
 
+"""
+ Lists of parameters which we vary in simulations 
+ 
+"""
+alpha_angle = np.array([0.5,1,1.5,2,2.5,3])*(np.pi/180.) #degrees 
+beta_angle = np.array([0,15,30,45])*(np.pi/180.) #degrees 
+
+a_width_mm = np.array([2,5,8,11,14,17]) # [mm] long axis of the ellipse radius
+b_width_mm = np.array([1,2,3,4,5]) # [mm] short axis of the ellipse radius 
+a_width = np.array([2,5,8,11,14,17])*1e-3
+b_width = np.array([1,2,3,4,5])*1e-3
+
+power_laser_mW = np.array([15,20,25,30]) # [mW]
+power_laser = power_laser_mW*1e-3
+
+rad_position = np.array([1,2,3,4]) # [mm]
+position_angle = np.array([0,15,30,45])*(np.pi/180.)
+
+#initial positions of atoms
+x_init = np.insert([rad_position*np.cos(a)*1e-3 for a in position_angle],0,0)
+y_init = np.insert([rad_position*np.sin(a)*1e-3 for a in position_angle],0,0)
+
+#initial velocities of atoms
+vz_init = speed_init*np.cos(alpha_angle)
+vx_init = np.insert([speed_init*np.sin(alpha)*np.cos(beta) for alpha in alpha_angle for beta in beta_angle],0,0)
+vy_init = np.insert([speed_init*np.sin(alpha)*np.sin(beta) for alpha in alpha_angle for beta in beta_angle],0,0)
+
+initialconditions = np.array(list(itertools.product(x_init,vx_init,y_init,vy_init,z_init,vz_init)))
+
+print(initialconditions.shape)
+
+print(vx_init)
+print(vy_init)
 
 
-class Coords_and_vel(tables.IsDescription):
-    time = tables.Float64Col()
-    x_pos = tables.Float64Col()   
-    vx = tables.Float64Col()
-    y_pos = tables.Float64Col()
-    vy = tables.Float64Col()
-    z_pos = tables.Float64Col()
-    vz = tables.Float64Col()
-    # idnumber  = Int64Col()      # Signed 64-bit integer
-    # ADCcount  = UInt16Col()     # Unsigned short integer
-    # TDCcount  = UInt8Col()      # unsigned byte
-    # grid_i    = Int32Col()      # 32-bit integer
-    # grid_j    = Int32Col()      # 32-bit integer
-    # pressure  = Float32Col()    # float  (single-precision)
-    # energy    = Float64Col()    # double (double-precision)
+sys.exit(0)
 
-class Detunings(tables.IsDescription):
-    detun = tables.Float64Col()
+# Organizing the PyTables HDF5 file to save the data
+
+class Simulation_output(tables.IsDescription):
+    final_pos_xy = tables.Float64Col()
+    final_vx = tables.Float64Col()   
+    final_vy = tables.Float64Col()
+    final_speed_xy = tables.Float64Col()
+    init_x = tables.Float64Col()
+    init_y = tables.Float64Col()   
+    angle_alpha = tables.Float64Col()
+    angle_beta = tables.Float64Col()
     
 
-file_save = tables.open_file("C:/Users/Oleksiy/Desktop/SimulationResults/redMOT/UnifPowerUnifWaistComb%.i.hdf5"%num_redCombLines,mode="a",title= "Red MOT simulation, %.i comb"%num_redCombLines)
-grp_grad = file_save.create_group("/","grad%.3f"%(redGradient*100),title="Red gradient: %.3f G/cm"%(redGradient*100))
+class Descr(tables.IsDescription):
+    detun = tables.Float64Col()
+    a_width = tables.Float64Col()
+    b_width = tables.Float64Col()
+    power_mW = tables.Float64Col()
+    init_z = tables.Float64Col()
+    speed_init = tables.Float64Col()
+    
+power_index = 0 #we run the simulation for this entry in the power_laser vector
+a_width_index = 0
+b_width_index = 0
 
-grp_simulation = file_save.create_group(grp_grad,str(int(redPowerXtotal*10**3))+"_"+str(int(redRadX*10**3)),\
-    title="Power: " + str(int(redPowerXtotal*10**3))+ " mW, beam rad.:" +str(int(redRadX*10**3))+" mm")
 
-grp_detunings = file_save.create_group(grp_simulation,"detuningsHz",\
-    title="Values of freqs of the comb lines, in Hz, red-detuned from resonance")
-tbl_detunings = file_save.create_table(grp_detunings,"detunings",Detunings)
-detunigns_save = tbl_detunings.row
-for i in range(len(detunings_red)):
-    detunigns_save["detun"] = detunings_red[i]
-    detunigns_save.append()
-tbl_detunings.flush()
+
+file_save = tables.open_file("resultsTC/pow%.imWspeed%.idet1.hdf5"%(power_laser_mW[power_index],speed_init),mode="a",title= "Transverse cooling simulation, detuning = %.3f Gamma"%detun_fractionGamma)
+grp_sim = file_save.create_group("/","a%.ib%.i"%(a_width_mm[a_width_index],b_width_mm[b_width_index]))
+#grp_descr = file_save.create_group("/","a%.ib%.idescr"%(a_width_mm[a_width_index],b_width_mm[b_width_index]),title="Description of the simulation with the correspondidng title")
+#grp_simulation = file_save.create_group(grp_grad,str(int(redPowerXtotal*10**3))+"_"+str(int(redRadX*10**3)),\
+#    title="Power: " + str(int(redPowerXtotal*10**3))+ " mW, beam rad.:" +str(int(redRadX*10**3))+" mm")
+
+#grp_detunings = file_save.create_group(grp_simulation,"detuningsHz",\
+#    title="Values of freqs of the comb lines, in Hz, red-detuned from resonance")
+#tbl_detunings = file_save.create_table(grp_detunings,"detunings",Detunings)
+#detunigns_save = tbl_detunings.row
+#for i in range(len(detunings_red)):
+#    detunigns_save["detun"] = detunings_red[i]
+#    detunigns_save.append()
+#tbl_detunings.flush()
 
 
 
@@ -149,17 +186,19 @@ print("Getting ready to run the solution loop")
 
 counter = 0
 
-for inits in initialconds_red: 
+for num,inits in enumerate(initialconditions): 
 
     #tbl_inits = file_save.create_table(grp_simulation,"init"+str(counter),Coords_and_vel,"Initial conditions")
-    tbl_results = file_save.create_table(grp_simulation,str(counter),Coords_and_vel,"Results")
-    tbl_results.attrs.initialconds = "x: %.f, vx: %.f, y: %.f, vy: %.f, z: %.f, vz: %.f"%(inits[0],inits[1],inits[2],inits[3],inits[4],inits[5])
-    coords_and_vel = tbl_results.row
+    tbl_results = file_save.create_table(grp_sim,str(num),Simulation_output,"Results")
+    #tbl_results.attrs.initialconds = "x: %.f, vx: %.f, y: %.f, vy: %.f, z: %.f, vz: %.f"%(inits[0],inits[1],inits[2],inits[3],inits[4],inits[5])
+    output = tbl_results.row
 
-
-    print("Solving for initial conditions %.i out of %.i"%(counter,len(initialconds_red)))
-    solution_red = odeint(diffeqs_red, inits, t, args=(parameters_red,),mxstep=10**8)
-    print("Saving data for initial conditions %.i out of %.i"%(counter,len(initialconds_red)))
+    params = [blueKvec,blueGamma,detun,a_width[a_width_index],b_width[b_width_index],power_laser[power_index],lam]
+    #print("Solving for initial conditions %.i out of %.i"%(counter,len(initialconds_red)))
+    psoln = odeint(diffeqs,inits,time,args=(params,))
+    y_final.append(psoln[-1,2])
+    vy_final.append(psoln[-1,3])
+    #print("Saving data for initial conditions %.i out of %.i"%(counter,len(initialconds_red)))
 
     for i in range(len(solution_red)):
         coords_and_vel["time"] = t[i]
@@ -292,7 +331,7 @@ fig.savefig(file_to_save_lastimage_png)
 #plt.show()
 
 
-
+#test
 
 
 
