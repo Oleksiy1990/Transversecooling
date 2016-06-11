@@ -130,7 +130,7 @@ vy_init = np.insert([speed_init*np.sin(alpha)*np.sin(beta) for alpha in alpha_an
 
 initialconditions = np.array(list(itertools.product(x_init,vx_init,y_init,vy_init,z_init,vz_init))) #this should be correct
 
-#print(initialconditions.shape)
+print(initialconditions.shape)
 #
 #print(x_init)
 #print(y_init)
@@ -172,7 +172,7 @@ class Timecheck(tables.IsDescription):
 
 #These are the parameters that are chosen for a simulation so that I don't just 
 #put in values inside the code, which is unclear
-power_index = 0 #we run the simulation for this entry in the power_laser vector
+power_index = 3 #we run the simulation for this entry in the power_laser vector
 a_width_index = 0
 b_width_index = 0
 
@@ -210,7 +210,7 @@ for a_width_index in range(len(a_width)):
         output = tbl_results.row
         
         
-        for num,inits in enumerate(initialconditions[0:50]):
+        for num,inits in enumerate(initialconditions):
             
         
             params = [blueKvec,blueGamma,detun,a_width[a_width_index],b_width[b_width_index],power_laser[power_index],lam]
