@@ -105,7 +105,7 @@ speed_init = np.array([550])
  Lists of parameters which we vary in simulations 
  
 """
-alpha_angle = np.array([0.5,1,1.5,2,2.5,3])*(np.pi/180.) #degrees 
+alpha_angle = np.array([0.5,1.5,2.5])*(np.pi/180.) #degrees 
 beta_angle = np.array([0,15,30,45])*(np.pi/180.) #degrees 
 
 a_width_mm = np.array([2,5,8,11,14,17]) # [mm] long axis of the ellipse radius
