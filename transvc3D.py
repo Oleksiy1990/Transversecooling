@@ -105,7 +105,8 @@ speed_init = np.array([550])
  Lists of parameters which we vary in simulations 
  
 """
-alpha_angle = np.array([0.5,1.5,2.5])*(np.pi/180.) #degrees 
+
+alpha_angle = np.array([0.5,1.5,2.5])*(np.pi/180.) #degrees #delete some for the sake of simulation speed
 beta_angle = np.array([0,15,30,45])*(np.pi/180.) #degrees 
 
 a_width_mm = np.array([2,5,8,11,14,17]) # [mm] long axis of the ellipse radius
@@ -172,9 +173,11 @@ class Timecheck(tables.IsDescription):
 
 #These are the parameters that are chosen for a simulation so that I don't just 
 #put in values inside the code, which is unclear
+
 power_index = 3 #we run the simulation for this entry in the power_laser vector
 a_width_index = 0
 b_width_index = 0
+
 
 for a_width_index in range(len(a_width)):
     for b_width_index in range(len(b_width)): 
@@ -209,8 +212,9 @@ for a_width_index in range(len(a_width)):
         tbl_results = file_save.create_table(grp_sim,"A",Simulation_output,"Results for the given beam width")
         output = tbl_results.row
         
-        
-        for num,inits in enumerate(initialconditions):
+
+        for num,inits in enumerate(initialconditions): # CAREFUL! Running all initial conditions is a long simulation!
+
             
         
             params = [blueKvec,blueGamma,detun,a_width[a_width_index],b_width[b_width_index],power_laser[power_index],lam]
