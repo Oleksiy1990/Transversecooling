@@ -130,10 +130,10 @@ vy_init = np.insert([speed_init*np.sin(alpha)*np.sin(beta) for alpha in alpha_an
 
 initialconditions = np.array(list(itertools.product(x_init,vx_init,y_init,vy_init,z_init,vz_init))) #this should be correct
 
-print(initialconditions.shape)
-
-print(vx_init)
-print(vy_init)
+#print(initialconditions.shape)
+#
+#print(x_init)
+#print(y_init)
 
 
 #sys.exit(0)
@@ -152,70 +152,103 @@ class Simulation_output(tables.IsDescription):
     
 
 class Descr(tables.IsDescription):
-    detun = tables.Float64Col()
+    detuning = tables.Float64Col()
     a_width = tables.Float64Col()
     b_width = tables.Float64Col()
-    power_mW = tables.Float64Col()
+    power = tables.Float64Col()
     init_z = tables.Float64Col()
     speed_init = tables.Float64Col()
     
+class Timecheck(tables.IsDescription):
+    time = tables.Float64Col()    
+    x = tables.Float64Col()
+    vx = tables.Float64Col()
+    y = tables.Float64Col()
+    vy = tables.Float64Col()
+    z = tables.Float64Col()
+    vz = tables.Float64Col()
+    
+
+
+#These are the parameters that are chosen for a simulation so that I don't just 
+#put in values inside the code, which is unclear
 power_index = 0 #we run the simulation for this entry in the power_laser vector
 a_width_index = 0
 b_width_index = 0
 
+for a_width_index in range(len(a_width)):
+    for b_width_index in range(len(b_width)): 
+        
 
-
-file_save = tables.open_file("resultsTC/pow%.imWspeed%.idet1.hdf5"%(power_laser_mW[power_index],speed_init),mode="a",title= "Transverse cooling simulation, detuning = %.3f Gamma"%detun_fractionGamma)
-grp_sim = file_save.create_group("/","a%.ib%.i"%(a_width_mm[a_width_index],b_width_mm[b_width_index]))
-#grp_descr = file_save.create_group("/","a%.ib%.idescr"%(a_width_mm[a_width_index],b_width_mm[b_width_index]),title="Description of the simulation with the correspondidng title")
-#grp_simulation = file_save.create_group(grp_grad,str(int(redPowerXtotal*10**3))+"_"+str(int(redRadX*10**3)),\
-#    title="Power: " + str(int(redPowerXtotal*10**3))+ " mW, beam rad.:" +str(int(redRadX*10**3))+" mm")
-
-#grp_detunings = file_save.create_group(grp_simulation,"detuningsHz",\
-#    title="Values of freqs of the comb lines, in Hz, red-detuned from resonance")
-#tbl_detunings = file_save.create_table(grp_detunings,"detunings",Detunings)
-#detunigns_save = tbl_detunings.row
-#for i in range(len(detunings_red)):
-#    detunigns_save["detun"] = detunings_red[i]
-#    detunigns_save.append()
-#tbl_detunings.flush()
-
-
-
-print("Getting ready to run the solution loop")
-
-tbl_results = file_save.create_table(grp_sim,"A",Simulation_output,"Results")
-output = tbl_results.row
-
-for num,inits in enumerate(initialconditions[0:2000]):
-    
-
-    params = [blueKvec,blueGamma,detun,a_width[a_width_index],b_width[b_width_index],power_laser[power_index],lam]
-    #print("Solving for initial conditions %.i out of %.i"%(counter,len(initialconds_red)))
-    psoln = odeint(diffeqs,inits,time,args=(params,))
-    
-    #print("Saving data for initial conditions %.i out of %.i"%(counter,len(initialconds_red)))
-
-   
-    output["final_pos_xy"] = np.sqrt(psoln[-1,0]**2+psoln[-1,2]**2)
-    output["final_vx"] = psoln[-1,0]   
-    output["final_vy"] = psoln[-1,2] 
-    output["final_speed_xy"] = np.sqrt(psoln[-1,1]**2+psoln[-1,3]**2) 
-    output["init_x"] = inits[0] 
-    output["init_y"] = inits[2]
-    output["init_vx"] = inits[1] 
-    output["init_vy"] = inits[3]
-    output.append()
-
-tbl_results.flush()
-del tbl_results
-
-# This is now a correct way to save the results into HDF5, but I need to check the equations
-    
-    
-   
-
-file_save.close()
+        file_save = tables.open_file("resultsTC/pow%.imWspeed%.idet1.hdf5"%(power_laser_mW[power_index],speed_init),mode="a",title= "Transverse cooling simulation, detuning = %.3f Gamma"%detun_fractionGamma)
+        
+        grp_sim = file_save.create_group("/","a%.ib%.i"%(a_width_mm[a_width_index],b_width_mm[b_width_index]))
+        grp_descr = file_save.create_group("/","a%.ib%.idescr"%(a_width_mm[a_width_index],b_width_mm[b_width_index]),title="Description of the simulation with the correspondidng title")
+        grp_timecheck = file_save.create_group("/","a%.ib%.itimecheck"%(a_width_mm[a_width_index],b_width_mm[b_width_index]),title="Saving one full example solution for every timestep")
+        
+        
+        tbl_descr = file_save.create_table(grp_descr,"A",Descr,"Description of the simulation")
+        tbl_descr.attrs.units = "All units in the Description table are SI"
+        descr_data = tbl_descr.row
+        
+        descr_data["detuning"] = detun
+        descr_data["a_width"] = a_width[a_width_index]
+        descr_data["b_width"] = b_width[b_width_index]
+        descr_data["power"] = power_laser[power_index]
+        descr_data["init_z"] = z_init[0]
+        descr_data["speed_init"] = speed_init[0]
+        descr_data.append()
+        
+        tbl_descr.flush()
+        
+        
+        
+        
+        print("Solving for a = %.i out of %.i and b = %.i out of %.i"%(a_width_index,len(a_width),b_width_index,len(b_width)))
+        #print("Done %.i out of %.i total"%(a_width_index+b_width_index,len(a_width)+len(b_width)))
+        tbl_results = file_save.create_table(grp_sim,"A",Simulation_output,"Results for the given beam width")
+        output = tbl_results.row
+        
+        
+        for num,inits in enumerate(initialconditions[0:50]):
+            
+        
+            params = [blueKvec,blueGamma,detun,a_width[a_width_index],b_width[b_width_index],power_laser[power_index],lam]
+            #print("Solving for initial conditions %.i out of %.i"%(counter,len(initialconds_red)))
+            psoln = odeint(diffeqs,inits,time,args=(params,))
+            
+            #print("Saving data for initial conditions %.i out of %.i"%(counter,len(initialconds_red)))
+        
+           
+            output["final_pos_xy"] = np.sqrt(psoln[-1,0]**2+psoln[-1,2]**2)
+            output["final_vx"] = psoln[-1,0]   
+            output["final_vy"] = psoln[-1,2] 
+            output["final_speed_xy"] = np.sqrt(psoln[-1,1]**2+psoln[-1,3]**2) 
+            output["init_x"] = inits[0] 
+            output["init_y"] = inits[2]
+            output["init_vx"] = inits[1] 
+            output["init_vy"] = inits[3]
+            output.append()
+        
+        tbl_results.flush()
+        
+        
+        timecheck_table = np.column_stack((time,psoln[:,0],psoln[:,1],psoln[:,2],psoln[:,3],psoln[:,4],psoln[:,5]))
+        arr_timecheck = file_save.create_array(grp_timecheck,"A",obj=timecheck_table,title="Example solution, all timesteps saved")
+        arr_timecheck.attrs.columnorder = "(time[s],x[m],vx[m/s],y[m],vy[m/s],z[m],vz[m/s])"
+        arr_timecheck.flush()
+        
+        
+        
+        
+        del tbl_results
+        
+        # This is now a correct way to save the results into HDF5, but I need to check the equations
+            
+            
+           
+        
+        file_save.close()
 sys.exit(0)
 
 
