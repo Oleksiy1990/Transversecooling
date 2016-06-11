@@ -173,8 +173,8 @@ class Timecheck(tables.IsDescription):
 #These are the parameters that are chosen for a simulation so that I don't just 
 #put in values inside the code, which is unclear
 power_index = 0 #we run the simulation for this entry in the power_laser vector
-a_width_index = 0
-b_width_index = 0
+
+#a_width_index and b_width_index can be set here independently (outside of any loops)
 
 for a_width_index in range(len(a_width)):
     for b_width_index in range(len(b_width)): 
@@ -210,7 +210,7 @@ for a_width_index in range(len(a_width)):
         output = tbl_results.row
         
         
-        for num,inits in enumerate(initialconditions[0:50]):
+        for num,inits in enumerate(initialconditions): # CAREFUL! Running all initial conditions is a long simulation!
             
         
             params = [blueKvec,blueGamma,detun,a_width[a_width_index],b_width[b_width_index],power_laser[power_index],lam]
