@@ -182,11 +182,65 @@ def simulation(ab_list):
     for ab in ab_list: # These should be the numbers to index the a and b widths to take
         
         print("Doing ab ",ab)
+
+        final_pos_xy = []
+        final_vx = []
+        final_vy = []
+        final_speed_xy = []
+        init_x = []
+        init_y = []
+        init_vx = []
+        init_vy = []
+
+        for num,inits in enumerate(initialconditions[0:150]):
+            
+        
+            params = [blueKvec,blueGamma,detun,a_width[ab[0]],b_width[ab[1]],power_laser[power_index],lam]
+            
+            psoln = odeint(diffeqs,inits,time,args=(params,))
+            
+            """
+            results will be in the form: 
+            [final_pos_xy,final_vx,final_vy,final_speed_xy,init_x,init_y,init_vx,init_vy]
+
+            """
+            final_pos_xy.append(np.sqrt(psoln[-1,0]**2+psoln[-1,2]**2))
+            final_vx.append(psoln[-1,0])
+            final_vy.append(psoln[-1,2])
+            final_speed_xy.append(np.sqrt(psoln[-1,1]**2+psoln[-1,3]**2))
+            init_x.append(inits[0])
+            init_y.append(inits[2])
+            init_vx.append(inits[1])
+            init_vy.append(inits[3])
+
+        
+           
+            
+
+        
+
+        l.acquire() # l is an instance of Lock() class, and it's defined in the Main
+
+        file_save = tables.open_file("resultsTC/pow%.imWspeed%.idet1.hdf5"%(power_laser_mW[power_index],speed_init),mode="a",title= "Transverse cooling simulation, detuning = %.3f Gamma"%detun_fractionGamma)
         grp_sim = file_save.create_group("/","a%.ib%.i"%(a_width_mm[ab[0]],b_width_mm[ab[1]]))
         grp_descr = file_save.create_group("/","a%.ib%.idescr"%(a_width_mm[ab[0]],b_width_mm[ab[1]]),title="Description of the simulation with the correspondidng title")
         grp_timecheck = file_save.create_group("/","a%.ib%.itimecheck"%(a_width_mm[ab[0]],b_width_mm[ab[1]]),title="Saving one full example solution for every timestep")
         
-        
+        tbl_results = file_save.create_table(grp_sim,"A",Simulation_output,"Results for the given beam width")
+        output = tbl_results.row
+
+        for q in range(len(final_pos_xy)):
+            output["final_pos_xy"] = final_pos_xy[q]
+            output["final_vx"] = final_vx[q]   
+            output["final_vy"] = final_vy[q]
+            output["final_speed_xy"] = final_speed_xy[q]
+            output["init_x"] = init_x[q]
+            output["init_y"] = init_y[q]
+            output["init_vx"] = init_vx[q]
+            output["init_vy"] = init_vy[q]
+            output.append()
+        tbl_results.flush()
+
         tbl_descr = file_save.create_table(grp_descr,"A",Descr,"Description of the simulation")
         tbl_descr.attrs.units = "All units in the Description table are SI"
         descr_data = tbl_descr.row
@@ -198,63 +252,22 @@ def simulation(ab_list):
         descr_data["init_z"] = z_init[0]
         descr_data["speed_init"] = speed_init[0]
         descr_data.append()
-        
-        l = Lock() # setting up a lock for accessing file saving (multiprocessing)
-        
-        
-        l.acquire()
         tbl_descr.flush()
-        l.release()
         
-        
-        
-        #print("Solving for a = %.i out of %.i and b = %.i out of %.i"%(ab[0],len(a_width),ab[1],len(b_width)))
-        #print("Done %.i out of %.i total"%(a_width_index+b_width_index,len(a_width)+len(b_width)))
-        tbl_results = file_save.create_table(grp_sim,"A",Simulation_output,"Results for the given beam width")
-        output = tbl_results.row
-        
-        
-        for num,inits in enumerate(initialconditions[0:150]):
-            
-        
-            params = [blueKvec,blueGamma,detun,a_width[ab[0]],b_width[ab[1]],power_laser[power_index],lam]
-            
-            psoln = odeint(diffeqs,inits,time,args=(params,))
-            
-            #print("Solving for initial conditions %.i"%num)
-        
-           
-            output["final_pos_xy"] = np.sqrt(psoln[-1,0]**2+psoln[-1,2]**2)
-            output["final_vx"] = psoln[-1,0]   
-            output["final_vy"] = psoln[-1,2] 
-            output["final_speed_xy"] = np.sqrt(psoln[-1,1]**2+psoln[-1,3]**2) 
-            output["init_x"] = inits[0] 
-            output["init_y"] = inits[2]
-            output["init_vx"] = inits[1] 
-            output["init_vy"] = inits[3]
-            output.append()
-        
-        print("Getting ready to save data")
-        l.acquire()
-        tbl_results.flush()
-        l.release()
-        
-
         print("Getting ready to save timecheck")
-        print("Timecheck table")
         timecheck_table = np.column_stack((time,psoln[:,0],psoln[:,1],psoln[:,2],psoln[:,3],psoln[:,4],psoln[:,5]))
-        print("Creating timecheck array")
         arr_timecheck = file_save.create_array(grp_timecheck,"A",obj=timecheck_table,title="Example solution, all timesteps saved")
-        print("Creating timecheck attributes")
         arr_timecheck.attrs.columnorder = "(time[s],x[m],vx[m/s],y[m],vy[m/s],z[m],vz[m/s])"
-        
-        print("Saving timecheck")
-        l.acquire()        
         arr_timecheck.flush()
+        print("Done with timecheck")
+        file_save.close()
+        
         l.release()
+               
+        
         
         print("Done with ab ",ab)
-        print("Let's go to the next one")
+        
         # This is now a correct way to save the results into HDF5, but I need to check the equations
             
             
@@ -265,178 +278,33 @@ def simulation(ab_list):
 
 if __name__ == "__main__": 
     
-    file_save = tables.open_file("resultsTC/pow%.imWspeed%.idet1.hdf5"%(power_laser_mW[power_index],speed_init),mode="a",title= "Transverse cooling simulation, detuning = %.3f Gamma"%detun_fractionGamma)
-
+    
     print(len(a_width))
     print(len(b_width))
     indices_ab = np.array(list(itertools.product(range(len(a_width)),range(len(b_width)))))  
+    num_processes = 7
+    indices_ab_forprocesses = np.array_split(indices_ab,num_processes)
     
-    p1 = Process(target=simulation,args=(indices_ab[0:5],))
-    p2 = Process(target=simulation,args=(indices_ab[5:10],))
-    p3 = Process(target=simulation,args=(indices_ab[10:15],))    
-    
-    p1.start()
-    p2.start()
-    p3.start()
-    
-    p1.join()
-    p2.join()
-    p3.join()
-    file_save.close()
-    
-
-    #print(np.array(list(itertools.product(range(len(a_width)),range(len(b_width))))))
-    
+    l = Lock() #We need to make only one lock! 
+    # So we need only one Lock class instance, apparently that's important
 
 
+    process_list = []
+    for q in range(num_processes):
+        pr = Process(target=simulation,args=(indices_ab_forprocesses[q],))
+        process_list.append(pr)
+
+    [pr.start() for pr in process_list]
+
+    [pr.join() for pr in process_list]
 
 
-
-    sys.exit(0)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#---------------------------------------------------------
-
-coords_and_vel = tbl.row
-
-print("Getting ready to solve")
-solution_red = odeint(diffeqs_red, initialconds_red[0], t, args=(parameters_red,),mxstep=10**9)
-
-print("Solved! Getting ready to write data")
-
-for i in range(len(solution_red)):
-    coords_and_vel["x_pos"] = solution_red[i,0]   
-    coords_and_vel["vx"] = solution_red[i,1] 
-    coords_and_vel["y_pos"] = solution_red[i,2] 
-    coords_and_vel["vy"] = solution_red[i,3] 
-    coords_and_vel["z_pos"] = solution_red[i,4] 
-    coords_and_vel["vz"] = solution_red[i,5] 
-    coords_and_vel.append()
-
-tbl.flush()
-
-
-
-
-
-
-# we sweep through the values of beam radii
-beam_width_init = 1*10**-3
-beam_width_final = 50*10**-3
-beam_width_pts = 30
-beamwidths = np.linspace(beam_width_init,beam_width_final,beam_width_pts)
-
-# these are the arrays to fill with results
-y_final = []
-vy_final = []
-
-# we save the simulation results and description to files
-call_simulation = "power30"
-folder_to_save = "simresults"+str(angle_init_deg)+"deg/"
-file_to_save = folder_to_save+call_simulation+".txt"
-file_to_save_descr = folder_to_save+call_simulation+"_README.txt"
-file_to_save_lastimage = folder_to_save+call_simulation+"_graph.eps"
-file_to_save_lastimage_png = folder_to_save+call_simulation+"_graph.png"
-# heads up here because path declarations depend on operating system
-
-# this is a check to make sure that we don't unintentionally overwrite stuff
-if isfile(file_to_save) or isfile(file_to_save_descr):
-    sys.exit("Change filename because otherwise you will overwrite existing data")
-
-# sweeping through beam widths
-for q in beamwidths:
-    w0 = q
-    params = [blueKvec,blueGamma,detun,w0,powerlaser]
-    init_conds = [x_init,vx_init,y_init,vy_init]
-
-    tStop=0.2*10**-3
-    tPts=10**5
-    t=np.linspace(0.,tStop,tPts)
-
-    psoln = odeint(diffeqs,init_conds,t,args=(params,))
-    y_final.append(psoln[-1,2])
-    vy_final.append(psoln[-1,3])
-    # print(w0)
-    # print("y")
-    # print(y_final)
-    # print("vy")
-    # print(vy_final)
-
-# the output is a 3-column array 
-output = np.column_stack((beamwidths,y_final,vy_final))
-
-np.savetxt(file_to_save,output)
-f = open(file_to_save_descr,"a")
-f.write("detuning = %.3f "%(detun/blueGamma) + "Gamma \n")
-f.write("laserpower = %.3f "%powerlaser + "W \n") 
-f.write("inital speed = %.3f "%speed_init +"m/s \n")
-f.write("inital angle with respect to x-axis =%.3f "%angle_init +"rad \n")
-f.write("Format: (beam width [m],y-final[m],vy-final[m/s]) \n")
-f.close()
     
 
-fig = plt.figure(1, figsize=(8,8))
+    
+    
 
-# Plot theta as a function of time
-ax1 = fig.add_subplot(311)
-ax1.plot(t, psoln[:,2])
-ax1.set_xlabel('time [s]')
-ax1.set_ylabel('y [m]')
-
-# Plot omega as a function of time
-ax2 = fig.add_subplot(312)
-ax2.plot(t, psoln[:,3])
-ax2.set_xlabel('time [s]')
-ax2.set_ylabel('vy [m/s]')
-
-ax3 = fig.add_subplot(313)
-ax3.plot(t, psoln[:,0])
-ax3.set_xlabel('time [s]')
-ax3.set_ylabel('x [s]')
-
-fig_description = """
-To show that at the end of integration the atom is already outside of 
-the transverse cooling beams
-"""
-
-fig.text(0,0,fig_description)
-fig.tight_layout()
-fig.savefig(file_to_save_lastimage)
-fig.savefig(file_to_save_lastimage_png)
-#plt.show()
-
-
-#test
-
+    
 
 
 
