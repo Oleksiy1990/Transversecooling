@@ -14,6 +14,7 @@ from os.path import isfile
 import sys
 import tables
 import itertools
+from multiprocessing import Process, Lock
 
 #Constants
 from pyConstants import *
@@ -81,7 +82,12 @@ def diffeqs(variables,t,params):
 
 
 
-# Parameters for simulation which we don't sweep
+
+
+""" 
+
+Parameters for simulation which we don't sweep
+"""
 detun_fractionGamma = 0.5
 detun = -blueGamma*detun_fractionGamma #beam detuning
 lam = 460.7e-9 #460.7 nm
@@ -91,14 +97,8 @@ time=np.linspace(0.,timeStop,timePts)
 
 z_init = np.array([-50e-3]) # in all initial conditions in this block 
 speed_init = np.array([550])
-
-
  
-#angle_init_mrad = 8
-#angle_init_deg = 5
-#angle_init=angle_init_deg*(np.pi/180) #conversion to radians 
-#vx_init = speed_init*np.cos(angle_init)
-#vy_init = speed_init*np.sin(angle_init)
+
 
 
 """
@@ -172,19 +172,19 @@ class Timecheck(tables.IsDescription):
 
 #These are the parameters that are chosen for a simulation so that I don't just 
 #put in values inside the code, which is unclear
-power_index = 3 #we run the simulation for this entry in the power_laser vector
-a_width_index = 0
-b_width_index = 0
+power_index = 1 #we run the simulation for this entry in the power_laser vector
+#a_width_index = 0
+#b_width_index = 0
 
-for a_width_index in range(len(a_width)):
-    for b_width_index in range(len(b_width)): 
-        
+def simulation(ab_list):
 
-        file_save = tables.open_file("resultsTC/pow%.imWspeed%.idet1.hdf5"%(power_laser_mW[power_index],speed_init),mode="a",title= "Transverse cooling simulation, detuning = %.3f Gamma"%detun_fractionGamma)
+
+    for ab in ab_list: # These should be the numbers to index the a and b widths to take
         
-        grp_sim = file_save.create_group("/","a%.ib%.i"%(a_width_mm[a_width_index],b_width_mm[b_width_index]))
-        grp_descr = file_save.create_group("/","a%.ib%.idescr"%(a_width_mm[a_width_index],b_width_mm[b_width_index]),title="Description of the simulation with the correspondidng title")
-        grp_timecheck = file_save.create_group("/","a%.ib%.itimecheck"%(a_width_mm[a_width_index],b_width_mm[b_width_index]),title="Saving one full example solution for every timestep")
+        print("Doing ab ",ab)
+        grp_sim = file_save.create_group("/","a%.ib%.i"%(a_width_mm[ab[0]],b_width_mm[ab[1]]))
+        grp_descr = file_save.create_group("/","a%.ib%.idescr"%(a_width_mm[ab[0]],b_width_mm[ab[1]]),title="Description of the simulation with the correspondidng title")
+        grp_timecheck = file_save.create_group("/","a%.ib%.itimecheck"%(a_width_mm[ab[0]],b_width_mm[ab[1]]),title="Saving one full example solution for every timestep")
         
         
         tbl_descr = file_save.create_table(grp_descr,"A",Descr,"Description of the simulation")
@@ -192,32 +192,36 @@ for a_width_index in range(len(a_width)):
         descr_data = tbl_descr.row
         
         descr_data["detuning"] = detun
-        descr_data["a_width"] = a_width[a_width_index]
-        descr_data["b_width"] = b_width[b_width_index]
+        descr_data["a_width"] = a_width[ab[0]]
+        descr_data["b_width"] = b_width[ab[1]]
         descr_data["power"] = power_laser[power_index]
         descr_data["init_z"] = z_init[0]
         descr_data["speed_init"] = speed_init[0]
         descr_data.append()
         
+        l = Lock() # setting up a lock for accessing file saving (multiprocessing)
+        
+        
+        l.acquire()
         tbl_descr.flush()
+        l.release()
         
         
         
-        
-        print("Solving for a = %.i out of %.i and b = %.i out of %.i"%(a_width_index,len(a_width),b_width_index,len(b_width)))
+        #print("Solving for a = %.i out of %.i and b = %.i out of %.i"%(ab[0],len(a_width),ab[1],len(b_width)))
         #print("Done %.i out of %.i total"%(a_width_index+b_width_index,len(a_width)+len(b_width)))
         tbl_results = file_save.create_table(grp_sim,"A",Simulation_output,"Results for the given beam width")
         output = tbl_results.row
         
         
-        for num,inits in enumerate(initialconditions):
+        for num,inits in enumerate(initialconditions[0:150]):
             
         
-            params = [blueKvec,blueGamma,detun,a_width[a_width_index],b_width[b_width_index],power_laser[power_index],lam]
-            #print("Solving for initial conditions %.i out of %.i"%(counter,len(initialconds_red)))
+            params = [blueKvec,blueGamma,detun,a_width[ab[0]],b_width[ab[1]],power_laser[power_index],lam]
+            
             psoln = odeint(diffeqs,inits,time,args=(params,))
             
-            #print("Saving data for initial conditions %.i out of %.i"%(counter,len(initialconds_red)))
+            #print("Solving for initial conditions %.i"%num)
         
            
             output["final_pos_xy"] = np.sqrt(psoln[-1,0]**2+psoln[-1,2]**2)
@@ -230,26 +234,94 @@ for a_width_index in range(len(a_width)):
             output["init_vy"] = inits[3]
             output.append()
         
+        print("Getting ready to save data")
+        l.acquire()
         tbl_results.flush()
+        l.release()
         
-        
+
+        print("Getting ready to save timecheck")
+        print("Timecheck table")
         timecheck_table = np.column_stack((time,psoln[:,0],psoln[:,1],psoln[:,2],psoln[:,3],psoln[:,4],psoln[:,5]))
+        print("Creating timecheck array")
         arr_timecheck = file_save.create_array(grp_timecheck,"A",obj=timecheck_table,title="Example solution, all timesteps saved")
+        print("Creating timecheck attributes")
         arr_timecheck.attrs.columnorder = "(time[s],x[m],vx[m/s],y[m],vy[m/s],z[m],vz[m/s])"
+        
+        print("Saving timecheck")
+        l.acquire()        
         arr_timecheck.flush()
+        l.release()
         
-        
-        
-        
-        del tbl_results
-        
+        print("Done with ab ",ab)
+        print("Let's go to the next one")
         # This is now a correct way to save the results into HDF5, but I need to check the equations
             
             
            
         
-        file_save.close()
-sys.exit(0)
+        
+
+
+if __name__ == "__main__": 
+    
+    file_save = tables.open_file("resultsTC/pow%.imWspeed%.idet1.hdf5"%(power_laser_mW[power_index],speed_init),mode="a",title= "Transverse cooling simulation, detuning = %.3f Gamma"%detun_fractionGamma)
+
+    print(len(a_width))
+    print(len(b_width))
+    indices_ab = np.array(list(itertools.product(range(len(a_width)),range(len(b_width)))))  
+    
+    p1 = Process(target=simulation,args=(indices_ab[0:5],))
+    p2 = Process(target=simulation,args=(indices_ab[5:10],))
+    p3 = Process(target=simulation,args=(indices_ab[10:15],))    
+    
+    p1.start()
+    p2.start()
+    p3.start()
+    
+    p1.join()
+    p2.join()
+    p3.join()
+    file_save.close()
+    
+
+    #print(np.array(list(itertools.product(range(len(a_width)),range(len(b_width))))))
+    
+
+
+
+
+
+    sys.exit(0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #---------------------------------------------------------
