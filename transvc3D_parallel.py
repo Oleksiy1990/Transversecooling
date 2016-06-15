@@ -96,7 +96,7 @@ timePts=10**5
 time=np.linspace(0.,timeStop,timePts)
 
 z_init = np.array([-50e-3]) # in all initial conditions in this block 
-speed_init = np.array([550])
+speed_init = np.array([600])
  
 
 
@@ -125,10 +125,15 @@ y_init = np.insert([rad_position*np.sin(a)*1e-3 for a in position_angle],0,0)
 
 #initial velocities of atoms
 vz_init = speed_init*np.cos(alpha_angle)
-vx_init = np.insert([speed_init*np.sin(alpha)*np.cos(beta) for alpha in alpha_angle for beta in beta_angle],0,0)
+vx_init = np.insert([speed_init*np.sin(alpha)*np.cos(beta) for alpha in alpha_angle for beta in beta_angle],0,0)  
 vy_init = np.insert([speed_init*np.sin(alpha)*np.sin(beta) for alpha in alpha_angle for beta in beta_angle],0,0)
 
-initialconditions = np.array(list(itertools.product(x_init,vx_init,y_init,vy_init,z_init,vz_init))) #this should be correct
+# [[speed_init*np.sin(alpha)*np.cos(beta),speed_init*np.sin(alpha)*np.sin(beta),speed_init*np.cos(alpha)] for alpha,beta in itertools.product(alpha_angle,beta_angle)]
+# vz_init = speed_init*np.cos(alpha_angle)
+# vx_init = np.insert([speed_init*np.sin(alpha)*np.cos(beta) for alpha in alpha_angle for beta in beta_angle],0,0)  
+# vy_init = np.insert([speed_init*np.sin(alpha)*np.sin(beta) for alpha in alpha_angle for beta in beta_angle],0,0)
+
+initialconditions = np.array(list(itertools.product(x_init,vx_init,y_init,vy_init,z_init,vz_init))) #This is in principle incorrect because all variables are NOT independent! 
 
 print(initialconditions.shape)
 #
@@ -172,11 +177,11 @@ class Timecheck(tables.IsDescription):
 
 #These are the parameters that are chosen for a simulation so that I don't just 
 #put in values inside the code, which is unclear
-power_index = 1 #we run the simulation for this entry in the power_laser vector
+power_index = 2 #we run the simulation for this entry in the power_laser vector
 #a_width_index = 0
 #b_width_index = 0
 
-def simulation(ab_list):
+def simulation(ab_list,l):
 
 
     for ab in ab_list: # These should be the numbers to index the a and b widths to take
@@ -192,7 +197,7 @@ def simulation(ab_list):
         init_vx = []
         init_vy = []
 
-        for num,inits in enumerate(initialconditions[0:150]):
+        for num,inits in enumerate(initialconditions):
             
         
             params = [blueKvec,blueGamma,detun,a_width[ab[0]],b_width[ab[1]],power_laser[power_index],lam]
@@ -291,7 +296,7 @@ if __name__ == "__main__":
 
     process_list = []
     for q in range(num_processes):
-        pr = Process(target=simulation,args=(indices_ab_forprocesses[q],))
+        pr = Process(target=simulation,args=(indices_ab_forprocesses[q],l))
         process_list.append(pr)
 
     [pr.start() for pr in process_list]

@@ -2,17 +2,18 @@ import tables
 import matplotlib.pyplot as plt 
 import numpy as np 
 import sys
-import matplotlib.animation as animation
+#import matplotlib.animation as animation
+import itertools
 
-
-filename="/Users/oleksiy/Desktop/PythonCode/Transversecooling/resultsTC/pow30mWspeed550det1.hdf5"
+filename = "C:/Users/Oleksiy/Desktop/Code/Transversecooling/resultsTC/pow30mWspeed550det1.hdf5"
+#filename="/Users/oleksiy/Desktop/PythonCode/Transversecooling/resultsTC/pow30mWspeed550det1.hdf5"
 datafile = tables.open_file(filename,"r")
 
 
 a_widths_mm = [2,5,8,11,14,17]
 b_widths_mm = [1,2,3,4,5]
 
-node = "/a8b5/A"
+node = "/a14b5/A"
 #data_group="/grad1.150/10_3/"
 
 # xp_init = []
@@ -29,11 +30,60 @@ node = "/a8b5/A"
 # zv_init = []
 # zv_final = []
 
+"""
 
-vx_in = datafile.get_node(node).read(field="init_vx")
-vy_in = datafile.get_node(node).read(field="init_vy")
-speed_fin = datafile.get_node(node).read(field="final_speed_xy")
-plt.scatter(np.sqrt(vx_in**2+vy_in**2),speed_fin)
+Loading data from any given node
+"""
+def load_node(node):
+    x_in = datafile.get_node(node).read(field="init_x")
+    y_in = datafile.get_node(node).read(field="init_y")
+    vx_in = datafile.get_node(node).read(field="init_vx")
+    vy_in = datafile.get_node(node).read(field="init_vy")
+    speed_fin = datafile.get_node(node).read(field="final_speed_xy")
+    return [x_in,y_in,vx_in,vy_in,speed_fin]
+
+nodes = ["/a%.ib%.i/A"%(u[0],u[1]) for u in itertools.product(a_widths_mm,b_widths_mm)]
+print(nodes)
+
+
+datalist = [load_node(node) for node in nodes] #sets of 5
+
+print(datalist[1])
+
+
+
+
+
+
+condition1 = [data[0]<1e-3 for data in datalist]
+condition2 = [data[1]<1e-3 for data in datalist]
+condition3 = [data[3] <1e-3 for data in datalist]
+condition4 = [(7<data[2]) & (data[2]<9) for data in datalist]
+condition_works = [data[4]<=1.5 for data in datalist]
+condition_fails = [data[4]>=1.5 for data in datalist]
+
+print(len(condition1))
+u = list(itertools.product(a_widths_mm,b_widths_mm))
+
+
+data_works = [np.extract((condition1[num] and condition2[num] and condition3[num] and condition4[num] and condition_works[num]),data[4]) for num,data in enumerate(datalist)]
+fig = plt.figure()
+ax1 = fig.add_subplot(211)
+
+
+
+ax1.scatter([a[0] for a in u],[a[1] for a in u],c="b",label='first')
+#ax2 = fig.add_subplot(212)
+#ax2.scatter(np.extract(condition_fails,data[2]),np.extract(condition_fails,data[3]),c="r",label='second')
+plt.legend(loc='upper left');
+plt.show()
+
+#condition = np.sqrt(vx_in**2+vy_in**2)<10
+#x = np.extract(condition,vx_in)
+#y = np.extract(condition,vy_in)
+#u = np.extract(condition,speed_fin)
+#plt.scatter(np.sqrt(x**2+y**2),u)
+#plt.scatter(np.sqrt(vx_in**2+vy_in**2),speed_fin)
 plt.show()
 
 sys.exit(0)
