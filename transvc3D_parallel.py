@@ -7,8 +7,8 @@
 
 
 import numpy as np 
-import matplotlib.pyplot as plt 
-import scipy as sp 
+#import matplotlib.pyplot as plt 
+#import scipy as sp 
 from scipy.integrate import odeint
 from os.path import isfile
 import sys
@@ -105,8 +105,10 @@ speed_init = np.array([600])
  Lists of parameters which we vary in simulations 
  
 """
-alpha_angle = np.array([0.5,1.5,2.5])*(np.pi/180.) #degrees #try deleting a few for simulation speed
+alpha_angle = np.array([0,0.5,1.5,2.5])*(np.pi/180.) #degrees #try deleting a few for simulation speed
 beta_angle = np.array([0,15,30,45])*(np.pi/180.) #degrees 
+alpha_beta = list(itertools.product(alpha_angle,beta_angle))
+
 
 a_width_mm = np.array([2,5,8,11,14,17]) # [mm] long axis of the ellipse radius
 b_width_mm = np.array([1,2,3,4,5]) # [mm] short axis of the ellipse radius 
