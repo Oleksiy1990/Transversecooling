@@ -105,7 +105,7 @@ speed_init = np.array([600])
  Lists of parameters which we vary in simulations 
  
 """
-alpha_angle = np.array([0,0.5,1.5,2.5])*(np.pi/180.) #degrees #try deleting a few for simulation speed
+alpha_angle = np.array([0,0.5,1.0,1.5,2.0,2.5])*(np.pi/180.) #degrees #try deleting a few for simulation speed
 beta_angle = np.array([0,15,30,45])*(np.pi/180.) #degrees 
 alpha_beta = list(itertools.product(alpha_angle,beta_angle))
 
@@ -118,32 +118,31 @@ b_width = np.array([1,2,3,4,5])*1e-3
 power_laser_mW = np.array([15,20,25,30]) # [mW]
 power_laser = power_laser_mW*1e-3
 
-rad_position = np.array([1,2,3,4]) # [mm]
+rad_position = np.array([0,1,2,3,4]) # [mm]
 position_angle = np.array([0,15,30,45])*(np.pi/180.)
 
+initialconditions = []
+
+for (rad,pos_ang,alpha,beta) in itertools.product(rad_position,position_angle,alpha_angle,beta_angle):
 #initial positions of atoms
-x_init = np.insert([rad_position*np.cos(a)*1e-3 for a in position_angle],0,0)
-y_init = np.insert([rad_position*np.sin(a)*1e-3 for a in position_angle],0,0)
+    x_init = rad*np.cos(pos_ang)*1e-3 
+    y_init = rad*np.sin(pos_ang)*1e-3
+    
+    #initial velocities of atoms
+    vz_init = speed_init*np.cos(alpha)
+    vx_init = speed_init*np.sin(alpha)*np.cos(beta)  
+    vy_init = speed_init*np.sin(alpha)*np.sin(beta)
+    initialconditions.append([x_init,vx_init,y_init,vy_init,z_init,vz_init])
 
-#initial velocities of atoms
-vz_init = speed_init*np.cos(alpha_angle)
-vx_init = np.insert([speed_init*np.sin(alpha)*np.cos(beta) for alpha in alpha_angle for beta in beta_angle],0,0)  
-vy_init = np.insert([speed_init*np.sin(alpha)*np.sin(beta) for alpha in alpha_angle for beta in beta_angle],0,0)
 
-# [[speed_init*np.sin(alpha)*np.cos(beta),speed_init*np.sin(alpha)*np.sin(beta),speed_init*np.cos(alpha)] for alpha,beta in itertools.product(alpha_angle,beta_angle)]
-# vz_init = speed_init*np.cos(alpha_angle)
-# vx_init = np.insert([speed_init*np.sin(alpha)*np.cos(beta) for alpha in alpha_angle for beta in beta_angle],0,0)  
-# vy_init = np.insert([speed_init*np.sin(alpha)*np.sin(beta) for alpha in alpha_angle for beta in beta_angle],0,0)
-
-initialconditions = np.array(list(itertools.product(x_init,vx_init,y_init,vy_init,z_init,vz_init))) #This is in principle incorrect because all variables are NOT independent! 
+initialconditions = np.array(initialconditions) 
 
 print(initialconditions.shape)
-#
-#print(x_init)
-#print(y_init)
 
 
-#sys.exit(0)
+
+#Stopping for now in order to not re-run the simulations yet
+sys.exit(0) 
 
 # Organizing the PyTables HDF5 file to save the data
 
